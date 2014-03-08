@@ -1,8 +1,25 @@
-#FROM centos
+# Ubuntu 12.04 TLS
 FROM ubuntu
 MAINTAINER fisto
 
 RUN apt-get update -y
+
+# user add
+RUN useradd fisto
+RUN echo 'fisto:fisto' | chpasswd
+RUN echo 'fisto ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/fisto
+RUN mkdir /home/fisto
+
+# ssh
+RUN apt-get install -y openssh-server
+#RUN sed -ri 's/Port 22/Port 22/g' /etc/ssh/sshd_config
+RUN sed -ri 's/UsePAM yes/#UsePAM yes/g' /etc/ssh/sshd_config
+RUN sed -ri 's/#UsePAM no/UsePAM no/g' /etc/ssh/sshd_config
+RUN mkdir /var/run/sshd
+RUN chmod 711 /var/run/sshd
+RUN mkdir /home/fisto/.ssh
+ADD authorized_keys /home/fisto/.ssh
+CMD /usr/sbin/sshd -D
 
 # Nginx
 RUN sed -i -e "1i deb http://nginx.org/packages/mainline/ubuntu/ precise nginx" /etc/apt/sources.list
@@ -27,23 +44,8 @@ RUN git clone https://github.com/sstephenson/ruby-build.git ~/.rbenv/plugins/rub
 RUN apt-get install build-essential libssl-dev -y
 ADD rbenv.sh /opt/rbenv.sh
 RUN bash /opt/rbenv.sh
-
-# ssh
-RUN apt-get install -y openssh-server
-#RUN sed -ri 's/Port 22/Port 22/g' /etc/ssh/sshd_config
-RUN sed -ri 's/UsePAM yes/#UsePAM yes/g' /etc/ssh/sshd_config
-RUN sed -ri 's/#UsePAM no/UsePAM no/g' /etc/ssh/sshd_config
-RUN mkdir /var/run/sshd
-RUN chmod 711 /var/run/sshd
-#CMD /usr/sbin/sshd -D
-
 #RUN ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key
 #RUN ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key
-
-# user add
-RUN useradd fisto
-RUN echo 'fisto:fisto' | chpasswd
-RUN echo 'fisto ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/fisto
 
 # mongodb
 #RUN apt-key adv --keyserver keyserver.ubuntu.com --recv 7F0CEB10
