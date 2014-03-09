@@ -28,6 +28,7 @@ RUN chmod 644 /root/.ssh/authorized_keys
 #ADD authorized_keys /home/fisto/.ssh/authorized_keys
 #RUN chown fisto:fisto /home/fisto/.ssh/authorized_keys
 #RUN chmod 644 /home/fisto/.ssh/authorized_keys
+#RUN chsh -s /bin/bash fisto
 
 # ssh
 RUN apt-get install -y openssh-server
