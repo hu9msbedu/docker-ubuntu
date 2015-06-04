@@ -1,82 +1,60 @@
-# Ubuntu 12.04 TLS
-FROM ubuntu
-MAINTAINER fisto
+FROM wangh/ssh:latest
 
-RUN apt-get update -y
+MAINTAINER wangh<wanghui94@live.com>
 
-# root
-RUN echo 'root:root' | chpasswd
+RUN apt-get update
 
-RUN mkdir /root/.ssh
-RUN chmod 700 /root/.ssh
-ADD authorized_keys /root/.ssh/authorized_keys
-RUN chmod 644 /root/.ssh/authorized_keys
+# 安装编译环境
+RUN apt-get install -y build-essential debhelper make autoconf automake patch 
+RUN apt-get install -y dpkg-dev fakeroot pbuilder gnupg dh-make libssl-dev libpcre3-dev git-core
 
-# user add
-#RUN useradd fisto
-#RUN echo 'fisto:fisto' | chpasswd
-#RUN echo 'fisto ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers.d/fisto
-#RUN chmod 440 /etc/sudoers.d/fisto
+# 设置系统时间
+RUN echo "Asia/Shanghai" > /etc/timezone && dpkg-reconfigure -f noninteractive tzdata
 
-#RUN mkdir /home/fisto
-#RUN chown fisto:fisto /home/fisto
+# 创建nginx用户
+RUN adduser --disabled-login --gecos 'Tengine' nginx
 
-#RUN mkdir /home/fisto/.ssh
-#RUN chown fisto:fisto /home/fisto/.ssh
-#RUN chmod 700 /home/fisto/.ssh
+WORKDIR /home/nginx
 
-#ADD authorized_keys /home/fisto/.ssh/authorized_keys
-#RUN chown fisto:fisto /home/fisto/.ssh/authorized_keys
-#RUN chmod 644 /home/fisto/.ssh/authorized_keys
-#RUN chsh -s /bin/bash fisto
+# 下载Tengine安装包
+RUN su nginx -c 'git clone https://github.com/alibaba/tengine.git'
 
-# ssh
-RUN apt-get install -y openssh-server
-#RUN sed -ri 's/Port 22/Port 22/g' /etc/ssh/sshd_config
-RUN sed -ri 's/UsePAM yes/#UsePAM yes/g' /etc/ssh/sshd_config
-RUN sed -ri 's/#UsePAM no/UsePAM no/g' /etc/ssh/sshd_config
-RUN mkdir /var/run/sshd
-RUN chmod 711 /var/run/sshd
-CMD /usr/sbin/sshd -D
+WORKDIR /home/nginx/tengine
+RUN su nginx -c 'mv packages/debian .'
 
-# Nginx
-RUN sed -i -e "1i deb http://nginx.org/packages/mainline/ubuntu/ precise nginx" /etc/apt/sources.list
-RUN sed -i -e "2i deb-src http://nginx.org/packages/mainline/ubuntu/ precise nginx" /etc/apt/sources.list
+ENV DEB_BUILD_OPTIONS nocheck
 
-#RUN apt-get install wget -y
-RUN wget http://nginx.org/keys/nginx_signing.key
-RUN apt-key add nginx_signing.key
+RUN su nginx -c 'dpkg-buildpackage -rfakeroot -uc -b'
 
-RUN apt-get remove nginx nginx-common -y
-RUN apt-get update -y
-RUN apt-get install nginx -y
+WORKDIR /home/nginx
+RUN dpkg -i tengine_2.1.0-1_amd64.deb
 
-# git
-RUN apt-get install git -y
+VOLUME [ "/data", "/etc/nginx/sites-enabled", "/var/log/nginx" ]
 
-# rbenv
-#RUN git clone git://github.com/sstephenson/rbenv.git /root/.rbenv
-#RUN git clone https://github.com/sstephenson/ruby-build.git /root/.rbenv/plugins/ruby-build
+# 让nginx以非daemon模式运行
+RUN echo "\ndaemon off;" >> /etc/nginx/nginx.conf
 
-# Ruby 2.1.1
-RUN apt-get install build-essential libssl-dev -y
-#ADD rbenv.sh /opt/rbenv.sh
-#RUN sudo -u root bash /opt/rbenv.sh
+WORKDIR /etc/nginx
 
-# mongodb
-#RUN apt-key adv --keyserver keyserver.ubuntu.com --recv 7F0CEB10
-#RUN echo "deb http://downloads-distro.mongodb.org/repo/ubuntu-upstart dist 10gen" | tee -a /etc/apt/sources.list.d/10gen.list
-#RUN apt-get update
-#RUN apt-get -y install apt-utils
-#RUN apt-get -y install mongodb-10gen
-##RUN echo "" >> /etc/mongodb.conf
-#CMD ["/usr/bin/mongod", "--config", "/etc/mongodb.conf"] 
 
-# node.js
-#RUN add-apt-repository ppa:chris-lea/node.js
-#RUN echo "deb http://us.archive.ubuntu.com/ubuntu/ precise universe" >> /etc/apt/sources.list
-#RUN apt-get update
-#RUN apt-get install -y nodejs
+# 安装ssh服务
+RUN apt-get update && apt-get install -y openssh-server
+RUN mkdir -p /var/run/sshd
+# 用户名，密码
+RUN echo 'root:12345' | chpasswd
+RUN sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 
-# port
-EXPOSE 22 80
+# 取消pam的限制，否则用户登录后就被踢出
+RUN sed -ri 's/session required pam_loginuid.so/#session required pam_loginuid.so/g' /etc/pam.d/sshd
+
+
+# 添加运行脚本，并设置权限
+ADD run.sh /run.sh
+RUN chmod 755 /*.sh
+
+CMD ["/run.sh"]
+CMD ["/usr/sbin/sshd", "-D"]
+
+EXPOSE 80
+EXPOSE 443
+EXPOSE 22
